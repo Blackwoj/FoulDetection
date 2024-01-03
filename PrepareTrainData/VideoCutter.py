@@ -7,7 +7,7 @@ class VideoSceneSplitter:
     """
     A class for splitting a video into scenes based on histogram differences between frames.
     """
-    def __init__(self, video_path: Path, output_folder: Path, threshold_multiplier: float = 2.5):
+    def __init__(self, video_path: Path, output_folder: Path, threshold_multiplier: float = 1.5):
         """
         Initialize the VideoSceneSplitter.
 
@@ -66,10 +66,7 @@ class VideoSceneSplitter:
                 diff = self.histogram_difference(prev_hist, hist)
                 differences.append(diff)
 
-                avg_diff = np.mean(differences[-10:])
-                threshold = self.threshold_multiplier * avg_diff
-
-                if diff > threshold:
+                if diff > self.threshold_multiplier:
                     if scene_start > 0:
                         self.save_scene(
                             scene_start,
@@ -117,8 +114,9 @@ class VideoSceneSplitter:
 
 
 # TODO REWRITE TO USE AS method and connect To data loader.
-output_path = Path('VideoCutter.py').resolve().parent.parent
-output_path = output_path / '!Studia' / 'ProjektOutputData'
+base_path = Path('VideoCutter.py').resolve().parent.parent
+data_path = base_path / 'Dirty & Brutal Fouls in Football.mp4'
+output_path = base_path / '!Studia' / 'ProjektOutputData'
 
 video_splitter = VideoSceneSplitter(Path('Dirty & Brutal Fouls in Football.mp4'), output_path)
 video_splitter.scene_based_splitting()
