@@ -1,0 +1,6 @@
+setup.py
+FoulDetection.egg-info/PKG-INFO
+FoulDetection.egg-info/SOURCES.txt
+FoulDetection.egg-info/dependency_links.txt
+FoulDetection.egg-info/requires.txt
+FoulDetection.egg-info/top_level.txt
