@@ -1,4 +1,4 @@
-from DataLoader import DataLoader
+from .Model.DataLoader import DataLoader
 import logging
 import os
 from pathlib import Path
