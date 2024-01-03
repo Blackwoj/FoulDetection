@@ -3,7 +3,7 @@ import logging
 import glob
 import cv2
 from pathlib import Path
-from .DataProcessor.DataProcessor import DataProcessor
+from .DataProcessor import DataProcessor
 
 VIDEO_FILE_EXTENSION = '.mp4'
 
