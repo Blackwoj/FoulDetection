@@ -3,7 +3,7 @@ import logging
 import glob
 import cv2
 from pathlib import Path
-from .DataProcessor import DataProcessor
+from .DataProcessor.DataProcessor import DataProcessor
 
 VIDEO_FILE_EXTENSION = '.mp4'
 
@@ -39,6 +39,7 @@ class DataLoader:
         """
         Load video data and process frames.
         """
+        logging.info("Start DataLoader...")
         for filename in glob.glob(os.path.join(self.data_path, f'*{VIDEO_FILE_EXTENSION}')):
             filepath = os.path.join(self.data_path, filename)
 
@@ -54,7 +55,7 @@ class DataLoader:
                 self.frames.append(frame)
             cap.release()
 
-            logging.info(f"Video {filename} has been read, and frames have been saved.")
+            logging.info(f"Video {filename} has been read, passed to preproces data.")
 
             # Call the DataPreProcessor method for the frames
             name, ext = os.path.splitext(filename)

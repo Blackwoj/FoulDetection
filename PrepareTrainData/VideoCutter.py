@@ -1,12 +1,15 @@
 import cv2
 import numpy as np
 from pathlib import Path
+from .TrainingVideoValidator import TrainingVideoValidator
 
 
 class VideoSceneSplitter:
     """
     A class for splitting a video into scenes based on histogram differences between frames.
     """
+    validator = TrainingVideoValidator()
+
     def __init__(self, video_path: Path, output_folder: Path, threshold_multiplier: float = 1.5):
         """
         Initialize the VideoSceneSplitter.
@@ -54,7 +57,7 @@ class VideoSceneSplitter:
         differences = []
 
         scene_count = 0
-
+        act_frames = []
         while True:
             ret, frame = video_capture.read()
             if not ret:
@@ -68,13 +71,16 @@ class VideoSceneSplitter:
 
                 if diff > self.threshold_multiplier:
                     if scene_start > 0:
-                        self.save_scene(
-                            scene_start,
-                            int(video_capture.get(cv2.CAP_PROP_POS_FRAMES)) - 1, scene_count
-                        )
-                        scene_count += 1
-                    scene_start = int(video_capture.get(cv2.CAP_PROP_POS_FRAMES))
-
+                        if self.validator.predict_img(act_frames):
+                            act_frames = []
+                            self.validator
+                            self.save_scene(
+                                scene_start,
+                                int(video_capture.get(cv2.CAP_PROP_POS_FRAMES)) - 1, scene_count
+                            )
+                            scene_count += 1
+                        scene_start = int(video_capture.get(cv2.CAP_PROP_POS_FRAMES))
+            act_frames.append(frame)
             prev_frame = frame
             prev_hist = hist
 

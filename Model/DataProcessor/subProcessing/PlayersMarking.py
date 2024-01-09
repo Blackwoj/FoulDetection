@@ -18,26 +18,48 @@ class MarkPlayer:
         self.model.max_det = 1000  # type: ignore maximum number of detections per image
         self.colors = []
         self.previous_area = None
+        self.previous_players = None
+        self.previous_ball = None
+        self.scalar = 1.5
 
     def predict_img(self, img):
         results = self.model(img, size=640)
-        previous_area = self.define_valuable_area(results.pred[0], img)
-        return results, previous_area
+        self.previous_area, self.previous_ball, self.previous_players = self.define_valuable_area(results.pred[0], img)
+        ball_relative = self.convert_to_relative(self.previous_ball, self.previous_area)
+        player_1_relative = self.convert_to_relative(self.previous_players[0], self.previous_area)
+        player_2_relative = self.convert_to_relative(self.previous_players[1], self.previous_area)
+        return results, self.previous_area, ball_relative, [player_1_relative, player_2_relative]
+
+    def convert_to_relative(self, relative_position, frame_shape):
+
+        x1, y1, x2, y2 = relative_position
+        frame_width, frame_height, _, _ = frame_shape
+        relative_x1 = x1 - frame_width
+        relative_y1 = y1 - frame_height
+        relative_x2 = x2 - frame_width
+        relative_y2 = y2 - frame_height
+        return torch.tensor([relative_x1, relative_y1, relative_x2, relative_y2])
 
     def define_valuable_area(self, prediction, img):
         found_players = {}
         player = 0
         ball = 0
-
+        self.colors = []
         for element in prediction:
             if element[5] == 1:
                 player += 1
             else:
                 ball += 1
-        if player < 2 or ball != 1:
-            return self.widen_area() if self.previous_area else None
-
         ball_category = prediction[prediction[:, -1] == 0]
+        if player < 2 or ball != 1:
+            self.scalar = self.scalar * 0.5
+            return [self.widen_area(self.previous_area),
+                    self.widen_area(self.previous_ball),
+                    [self.widen_area(self.previous_players[0]),
+                    self.widen_area(self.previous_players[1])]
+            ]
+        self.previous_ball = ball_category[0]
+
         ball_centers = self.center_of_area(ball_category[0])
 
         players_category = prediction[prediction[:, -1] == 1]
@@ -54,13 +76,11 @@ class MarkPlayer:
         else:
             logging.error("Cannot define 2 players")
             return None
-
         for player in colored_players:
             player_area_center = self.center_of_area(player[1])
             distances_to_ball = torch.cdist(player_area_center.unsqueeze(0), ball_centers)
             player_team_diff = [player[0] - team for team in teams_colors]
             player_team_index = min(range(len(player_team_diff)), key=lambda i: abs(player_team_diff[i]))
-
             if len(found_players) >= 1:
                 if player_team_index not in found_players:
                     found_players[player_team_index] = [distances_to_ball, player[1]]
@@ -68,17 +88,22 @@ class MarkPlayer:
                     found_players[player_team_index] = [distances_to_ball, player[1]]
             else:
                 found_players[player_team_index] = [distances_to_ball, player[1]]
+        return [
+            self.define_area(ball_category, found_players),
+            torch.tensor(ball_category[0][0:4]),
+            [
+                torch.tensor(found_players[0][1][0:4]),
+                torch.tensor(found_players[1][1][0:4])
+            ]
+        ]
 
-        return self.define_area(ball_category, found_players)
-
-    def widen_area(self):
-        if self.previous_area:
-            return torch.tensor([
-                self.previous_area[0],
-                self.previous_area[1],
-                self.previous_area[2],
-                self.previous_area[3]
-            ])
+    def widen_area(self, tensor):
+        if tensor is not None:
+            x1 = torch.where(tensor[0] > 10, tensor[0] - 5*self.scalar, torch.tensor(0))
+            y1 = torch.where(tensor[1] > 10, tensor[1] - 5*self.scalar, torch.tensor(0))
+            x2 = tensor[2] + 5 * self.scalar
+            y2 = tensor[3] + 5 * self.scalar
+            return torch.tensor([x1, y1, x2, y2])
 
     def center_of_area(self, coordinates):
         cor_splited = torch.split(coordinates, 1)
@@ -98,7 +123,6 @@ class MarkPlayer:
             area_y1 = min(area_y1, player_y1)
             area_x2 = max(area_x2, player_x2)
             area_y2 = max(area_y2, player_y2)
-
         return torch.tensor([area_x1, area_y1, area_x2, area_y2])
 
     def _skirt_color(self, img, dim) -> List[float]:
