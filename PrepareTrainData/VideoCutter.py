@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from pathlib import Path
-from .TrainingVideoValidator import TrainingVideoValidator
+from TrainingVideoValidator import TrainingVideoValidator
 
 
 class VideoSceneSplitter:
@@ -45,14 +45,12 @@ class VideoSceneSplitter:
         return hist
 
     def scene_based_splitting(self):
-        """
-        Split the video into scenes based on histogram differences.
-        """
         video_capture = cv2.VideoCapture(str(self.video_path))
 
         prev_frame = None
         prev_hist = None
-        scene_start = 0
+        third_hist = None
+        seconde_hist = None
 
         differences = []
 
@@ -64,44 +62,49 @@ class VideoSceneSplitter:
                 break
 
             hist = self.calculate_histogram(frame)
+            if seconde_hist is None:
+                seconde_hist = hist
+            if third_hist is None:
+                third_hist = hist
 
             if prev_frame is not None:
-                diff = self.histogram_difference(prev_hist, hist)
+                diff = np.mean(np.array([self.histogram_difference(prev_hist, hist), self.histogram_difference(seconde_hist, hist), self.histogram_difference(third_hist, hist)]))
                 differences.append(diff)
-
-                if diff > self.threshold_multiplier:
-                    if scene_start > 0:
-                        if self.validator.predict_img(act_frames):
-                            act_frames = []
-                            self.validator
-                            self.save_scene(
-                                scene_start,
-                                int(video_capture.get(cv2.CAP_PROP_POS_FRAMES)) - 1, scene_count
-                            )
-                            scene_count += 1
-                        scene_start = int(video_capture.get(cv2.CAP_PROP_POS_FRAMES))
+                if int(diff) > self.threshold_multiplier:
+                    if self.validator.predict_img(act_frames):
+                        print("valid video")
+                        self.save_scene(
+                            act_frames,
+                            scene_count
+                        )
+                        act_frames = []
+                        scene_count += 1
+                        seconde_hist = hist
+                        third_hist = hist
             act_frames.append(frame)
             prev_frame = frame
+
+            third_hist = seconde_hist
+            seconde_hist = prev_hist
             prev_hist = hist
 
         video_capture.release()
         cv2.destroyAllWindows()
 
-    def save_scene(self, start_frame: int, end_frame: int, scene_count: int):
+    def save_scene(self, frames: list, scene_count: int):
         """
         Save a scene to a video file.
 
-        :param start_frame: Starting frame index of the scene.
-        :param end_frame: Ending frame index of the scene.
+        :param frames: List of frames for the scene.
         :param scene_count: Scene count (used in the output filename).
         """
+        if not frames:
+            return
+        print(f"save {scene_count}")
         video_capture = cv2.VideoCapture(str(self.video_path))
-
-        video_capture.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
-
         fps = int(video_capture.get(cv2.CAP_PROP_FPS))
-        width = int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        width = int(frames[0].shape[1])  # Assuming the frames have the same width and height
+        height = int(frames[0].shape[0])
 
         filename = f"{self.video_path.stem}_scene_{scene_count}.mp4"
         output_filepath = self.output_folder / filename
@@ -109,20 +112,18 @@ class VideoSceneSplitter:
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out = cv2.VideoWriter(str(output_filepath), fourcc, fps, (width, height))
 
-        for _ in range(start_frame, end_frame + 1):
-            ret, frame = video_capture.read()
-            if not ret:
-                break
+        for frame in frames:
             out.write(frame)
 
         out.release()
         video_capture.release()
 
 
-# TODO REWRITE TO USE AS method and connect To data loader.
-base_path = Path('VideoCutter.py').resolve().parent.parent
-data_path = base_path / 'Dirty & Brutal Fouls in Football.mp4'
+base_path = Path(__file__).resolve().parent.parent.parent.parent
+data_path = Path(__file__).resolve().parent.parent / 'viedoes_to_cut'
 output_path = base_path / '!Studia' / 'ProjektOutputData'
 
-video_splitter = VideoSceneSplitter(Path('Dirty & Brutal Fouls in Football.mp4'), output_path)
-video_splitter.scene_based_splitting()
+for file_path in data_path.glob('*'):  # Iterating through all files in data_path
+    if file_path.is_file():  # Checking if the path is a file (not a directory)
+        video_splitter = VideoSceneSplitter(file_path, output_path)
+        video_splitter.scene_based_splitting()
