@@ -10,7 +10,7 @@ class VideoSceneSplitter:
     """
     validator = TrainingVideoValidator()
 
-    def __init__(self, video_path: Path, output_folder: Path, threshold_multiplier: float = 1.5):
+    def __init__(self, video_path: Path, output_folder: Path, threshold_multiplier: float = 20):
         """
         Initialize the VideoSceneSplitter.
 
@@ -69,6 +69,8 @@ class VideoSceneSplitter:
 
             if prev_frame is not None:
                 diff = np.mean(np.array([self.histogram_difference(prev_hist, hist), self.histogram_difference(seconde_hist, hist), self.histogram_difference(third_hist, hist)]))
+                # diff = np.mean(np.array([self.histogram_difference(prev_hist, hist), self.histogram_difference(seconde_hist, hist)]))
+                # diff = self.histogram_difference(prev_hist, hist)
                 differences.append(diff)
                 if int(diff) > self.threshold_multiplier:
                     if self.validator.predict_img(act_frames):
@@ -120,7 +122,7 @@ class VideoSceneSplitter:
 
 
 base_path = Path(__file__).resolve().parent.parent.parent.parent
-data_path = Path(__file__).resolve().parent.parent / 'viedoes_to_cut'
+data_path = Path(__file__).resolve().parent.parent / 'videos_to_cut'
 output_path = base_path / '!Studia' / 'ProjektOutputData'
 
 for file_path in data_path.glob('*'):  # Iterating through all files in data_path

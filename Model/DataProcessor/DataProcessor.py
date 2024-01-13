@@ -55,17 +55,34 @@ class DataProcessor:
         video.release()
 
     def process_frames(self, frames: list, filename, output_folder):
-
-        marked_frames = []
-        landmark_frame = []
-        i = 0
-        for frame in frames:
-            i += 1
+        data_to_train = []
+        new_video = 1
+        for i, frame in enumerate(frames, start=1):
+            act_row = []
             self.pose_detector.rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            result, box_of_interest, ball_relative, players_relative = self.mark_player.predict_img(frame)
-            # marked_frames.append(self.visualizer.draw_bounding_box(frame, box_of_interest, "FoulArea"))
-            pose_landmarks_list = self.pose_detector.detect_pose_landmarks(frame, box_of_interest, players_relative)
-            landmark_frame = (self.pose_detector.overlay_landmarks_on_frame(frame, players_relative, box_of_interest, pose_landmarks_list))
-            marked_frames.append(self.visualizer.draw_bounding_box(landmark_frame, box_of_interest, "FoulArea"))
-        self.create_output_video(marked_frames, output_folder, f"{filename}_done_video")
-        # self.create_output_video(landmark_frame, output_folder, f"{filename}_landmark")
+            result, box_of_interest, _, players_relative, players_centers = self.mark_player.predict_img(frame, new_video)
+            new_video = 0
+
+            if result is not None and players_centers is not None:
+                pose_landmarks_list = self.pose_detector.detect_pose_landmarks(frame, box_of_interest, players_relative)
+                p1_center = players_centers[0].tolist()
+                p2_center = players_centers[1].tolist()
+                if len(pose_landmarks_list[0]) == 1 and len(pose_landmarks_list[1]) == 1:
+                    act_row = self.prepare_data_to_train(pose_landmarks_list)
+                    act_row[0].append(p1_center[0][0])
+                    act_row[0].append(p1_center[0][1])
+                    act_row[0].append(p2_center[0][0])
+                    act_row[0].append(p2_center[0][1])
+                    data_to_train.append(act_row[0])
+        print(len(data_to_train))
+        return data_to_train
+
+    def prepare_data_to_train(self, data):
+        landmarks_data = []
+        for player in data:
+            player_data = []
+            for landmarks_frame in player:
+                landmarks_frame_data = [landmark.x for landmark in landmarks_frame] + [landmark.y for landmark in landmarks_frame] + [landmark.z for landmark in landmarks_frame]
+                player_data.extend(landmarks_frame_data)
+            landmarks_data.append(player_data)
+        return landmarks_data

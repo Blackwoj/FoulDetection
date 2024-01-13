@@ -7,7 +7,9 @@ from Model.DataLoader import DataLoader as MyDataLoader
 logging.basicConfig(level=logging.INFO)
 
 project_path = Path('run.py').resolve().parent
-data_path = project_path / 'sampleData'
+data_path = project_path / 'video_to_train' / 'NoFoul'
+
+# data_path = project_path / 'sampleData'
 
 try:
     logging.info("Started!")

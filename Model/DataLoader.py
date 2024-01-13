@@ -4,6 +4,7 @@ import glob
 import cv2
 from pathlib import Path
 from .DataProcessor.DataProcessor import DataProcessor
+import numpy as np
 
 VIDEO_FILE_EXTENSION = '.mp4'
 
@@ -40,8 +41,11 @@ class DataLoader:
         Load video data and process frames.
         """
         logging.info("Start DataLoader...")
+        file_index = 1
+        self.valid_frames_value = []
         for filename in glob.glob(os.path.join(self.data_path, f'*{VIDEO_FILE_EXTENSION}')):
             filepath = os.path.join(self.data_path, filename)
+            self.frames = []
 
             cap = cv2.VideoCapture(filepath)  # type: ignore
 
@@ -59,8 +63,23 @@ class DataLoader:
 
             # Call the DataPreProcessor method for the frames
             name, ext = os.path.splitext(filename)
-            self.data_preprocessor.process_frames(
+            self.save_data_to_csv(self.data_preprocessor.process_frames(
                 self.frames,
                 name,
                 self.output_folder
-            )
+            ), file_index)
+            file_index += 1
+        np.savetxt('valid_frame_value1.csv', self.valid_frames_value, delimiter=", ", fmt='% s')
+
+    def save_data_to_csv(self, data, output_num: int):
+        output_file = f"{output_num}.csv"
+        project_path = Path(__file__).resolve().parent.parent
+        output_path = project_path / "trainData" /'NoFoul'/ output_file
+        self.valid_frames_value.append(len(data))
+        np.savetxt(
+            output_path,
+            data,
+            delimiter=", ", 
+            fmt='% s'
+        )
+        print(f'Data saved to {output_file}')

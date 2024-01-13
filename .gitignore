@@ -2,3 +2,5 @@ venv/
 FoulDetection.egg-info
 data/
 videos_to_cut/
+video_to_train/
+trainData/

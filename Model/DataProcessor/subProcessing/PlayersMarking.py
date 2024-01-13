@@ -22,13 +22,20 @@ class MarkPlayer:
         self.previous_ball = None
         self.scalar = 1.5
 
-    def predict_img(self, img):
+    def predict_img(self, img, new_video):
+        if new_video == 1:
+            self.previous_area, self.previous_ball, self.previous_players = [None, None, None]
         results = self.model(img, size=640)
         self.previous_area, self.previous_ball, self.previous_players = self.define_valuable_area(results.pred[0], img)
-        ball_relative = self.convert_to_relative(self.previous_ball, self.previous_area)
-        player_1_relative = self.convert_to_relative(self.previous_players[0], self.previous_area)
-        player_2_relative = self.convert_to_relative(self.previous_players[1], self.previous_area)
-        return results, self.previous_area, ball_relative, [player_1_relative, player_2_relative]
+        if self.previous_area is not None and self.previous_players is not None and self.previous_ball is not None:
+            # ball_relative = self.convert_to_relative(self.previous_ball, self.previous_area)
+            player_1_relative = self.convert_to_relative(self.previous_players[0], self.previous_area)
+            player_2_relative = self.convert_to_relative(self.previous_players[1], self.previous_area)
+            player_1_center = self.center_of_area(self.previous_players[0])
+            player_2_center = self.center_of_area(self.previous_players[1])
+
+            return results, self.previous_area, self.previous_ball, [player_1_relative, player_2_relative], [player_1_center, player_2_center]
+        return None, None, None, None, None
 
     def convert_to_relative(self, relative_position, frame_shape):
 
@@ -53,11 +60,18 @@ class MarkPlayer:
         ball_category = prediction[prediction[:, -1] == 0]
         if player < 2 or ball != 1:
             self.scalar = self.scalar * 0.5
-            return [self.widen_area(self.previous_area),
+            if self.previous_ball is not None and self.previous_area is not None and self.previous_players is not None:
+                return [
+                    self.widen_area(self.previous_area),
                     self.widen_area(self.previous_ball),
-                    [self.widen_area(self.previous_players[0]),
-                    self.widen_area(self.previous_players[1])]
-            ]
+                    [
+                        self.widen_area(self.previous_players[0]),
+                        self.widen_area(self.previous_players[1])
+                    ]
+                ]
+            else:
+                return None, None, None
+
         self.previous_ball = ball_category[0]
 
         ball_centers = self.center_of_area(ball_category[0])
@@ -92,17 +106,19 @@ class MarkPlayer:
             self.define_area(ball_category, found_players),
             torch.tensor(ball_category[0][0:4]),
             [
-                torch.tensor(found_players[0][1][0:4]),
-                torch.tensor(found_players[1][1][0:4])
+                self.widen_area(found_players[0][1][0:4], 2),
+                self.widen_area(found_players[1][1][0:4], 2)
             ]
         ]
 
-    def widen_area(self, tensor):
+    def widen_area(self, tensor, scalar=None):
+        if not scalar:
+            scalar = self.scalar
         if tensor is not None:
-            x1 = torch.where(tensor[0] > 10, tensor[0] - 5*self.scalar, torch.tensor(0))
-            y1 = torch.where(tensor[1] > 10, tensor[1] - 5*self.scalar, torch.tensor(0))
-            x2 = tensor[2] + 5 * self.scalar
-            y2 = tensor[3] + 5 * self.scalar
+            x1 = torch.where(tensor[0] > 10, tensor[0] - 5*scalar, torch.tensor(0))
+            y1 = torch.where(tensor[1] > 10, tensor[1] - 5*scalar, torch.tensor(0))
+            x2 = tensor[2] + 5 * scalar
+            y2 = tensor[3] + 5 * scalar
             return torch.tensor([x1, y1, x2, y2])
 
     def center_of_area(self, coordinates):
@@ -143,5 +159,8 @@ class MarkPlayer:
         non_zero_colors = img_filtered.reshape(-1, img_filtered.shape[-1])[
             np.any(img_filtered.reshape(-1, img_filtered.shape[-1]) != [0, 0, 0], axis=1)]
 
-        mean_color = np.mean(non_zero_colors, axis=0)
+        if not non_zero_colors.any():
+            return [0, 0, 0]
+
+        mean_color = np.mean(non_zero_colors, axis=0)  # type: ignore
         return list(colorsys.rgb_to_hls(*mean_color))
