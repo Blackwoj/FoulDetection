@@ -1,68 +1,69 @@
-import torch
 import torch.nn as nn
-import torch.optim as optim
-from torchvision import models
 
+class ResNetConvLSTM(nn.Module):
+    def __init__(self, resnet_model, input_size, hidden_size, num_classes, lstm_kernel_size=3):
+        super(ResNetConvLSTM, self).__init__()
+        self.resnet = resnet_model
+        self.resnet.conv1 = nn.Conv2d(103, 64, kernel_size=7, stride=2, padding=3, bias=False).double()
+        self.resnet.fc = nn.Identity()
 
-class TimeSeriesResNet:
-    def __init__(self, input_size, output_size, num_frames_per_sample, learning_rate=0.001):
-        self.input_size = input_size
-        self.output_size = output_size
-        self.num_frames_per_sample = num_frames_per_sample
-        self.learning_rate = learning_rate
+        for layer in self.resnet.modules():
+            if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.BatchNorm2d) or isinstance(layer, nn.Linear):
+                layer = layer.double()
 
-        # Tworzenie modelu ResNet
-        self.model = self._build_model()
+        self.hidden_size = hidden_size
+        self.lstm_kernel_size = lstm_kernel_size
+        self.num_features = input_size[2]  # Wybierz liczbę cech (third element in input_size)
+        self.batch_size = None  # Rozmiar batcha będzie ustawiany przy pierwszym przejściu przez sieć
 
-        # Definiowanie funkcji straty i optymalizatora
-        self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
+        self.lstm = None  # Ukryta warstwa LSTM nie jest inicjalizowana tutaj
+        self.fc = nn.Linear(hidden_size, num_classes).double()
+        self.hidden = None  # Ukryta warstwa LSTM nie jest inicjalizowana tutaj
 
-    def _build_model(self):
-        # Tworzenie modelu ResNet18
-        resnet = models.resnet18(pretrained=True)
+    def init_hidden(self, batch_size):
+        # Inicjalizuj ukrytą warstwę LSTM
+        weight = next(self.parameters()).data
+        return (weight.new(1, batch_size, self.hidden_size).zero_(),
+                weight.new(1, batch_size, self.hidden_size).zero_())
 
-        # Zamiana ostatniej warstwy (klasyfikatora) na nową warstwę dla naszego przypadku
-        resnet.fc = nn.Linear(resnet.fc.in_features, self.output_size)
+    def forward(self, x):
+        batch_size, seq_len, num_features = x.size()
+        print(batch_size, seq_len, num_features)
 
-        # Replicowanie warstw dla num_frames_per_sample
-        model = nn.Sequential(
-            nn.Conv2d(self.input_size * self.num_frames_per_sample, 64, kernel_size=7, stride=2, padding=3, bias=False),
-            resnet,
-            nn.Flatten(),
-            nn.Linear(self.output_size, self.output_size)
-        )
+        if self.batch_size is None:
+            # Inicjalizuj rozmiar batcha i ukrytą warstwę LSTM przed pierwszym przejściem
+            self.batch_size = batch_size
+            self.lstm = nn.LSTM(
+                input_size=num_features,
+                hidden_size=int(self.hidden_size),
+                num_layers=1,
+                batch_first=True
+            ).double()
+            self.hidden = self.init_hidden(self.batch_size)
 
-        return model
+        features = self.resnet(x.view(batch_size * seq_len, num_features, 1, 1))
+        print(features.size())
+        features = features.view(batch_size, seq_len, -1)
 
-    def train(self, train_loader, epochs=10):
-        self.model.train()
+        # LSTM input should have the shape (batch_size, seq_len, input_size)
+        print(features.size())
+        lstm_input = features.permute(0, 2, 1).contiguous()
+        print(lstm_input.size())
 
-        for epoch in range(epochs):
-            running_loss = 0.0
+        # Upewnij się, że tensor wejściowy do LSTM ma odpowiednie wymiary
+        print(f'LSTM input size: {lstm_input.size()}')
+        print(f'LSTM hidden size: {self.hidden_size}')
 
-            for inputs, labels in train_loader:
-                self.optimizer.zero_grad()
-                outputs = self.model(inputs)
-                loss = self.criterion(outputs, labels)
-                loss.backward()
-                self.optimizer.step()
-                running_loss += loss.item()
+        # Dopasuj wymiary tensora wejściowego do warstwy LSTM
+        lstm_input = lstm_input.view(batch_size, self.hidden_size, seq_len)
 
-            epoch_loss = running_loss / len(train_loader)
-            print(f"Epoch {epoch + 1}/{epochs}, Loss: {epoch_loss:.4f}")
+        h_t, self.hidden = self.lstm(lstm_input, self.hidden)
 
-    def save_model(self, path):
-        torch.save(self.model.state_dict(), path)
+        # Pozostały kod bez zmian
 
-# input_size - rozmiar wejścia (np. liczba cech na ramkę)
-# output_size - liczba klas
-# num_frames_per_sample - liczba klatek w sekwencji czasowej
-# learning_rate - współczynnik uczenia
-# train_loader - DataLoader z danymi uczącymi
-# epochs - liczba epok
-# model_path - ścieżka do zapisania modelu
-# Przykład użycia:
-# model = TimeSeriesResNet(input_size=3, output_size=10, num_frames_per_sample=10, learning_rate=0.001)
-# model.train(train_loader, epochs=10)
-# model.save_model("model.pth")
+        # Use the last time step output for classification
+        h_t = h_t[:, -1, :]
+
+        # Classification
+        output = self.fc(h_t)
+        return output

@@ -74,7 +74,6 @@ class VideoSceneSplitter:
                 differences.append(diff)
                 if int(diff) > self.threshold_multiplier:
                     if self.validator.predict_img(act_frames):
-                        print("valid video")
                         self.save_scene(
                             act_frames,
                             scene_count

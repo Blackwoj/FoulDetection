@@ -54,7 +54,6 @@ class DataLoader:
                 ret, frame = cap.read()
                 if not ret:
                     break
-
                 frame_count += 1
                 self.frames.append(frame)
             cap.release()
@@ -74,12 +73,12 @@ class DataLoader:
     def save_data_to_csv(self, data, output_num: int):
         output_file = f"{output_num}.csv"
         project_path = Path(__file__).resolve().parent.parent
-        output_path = project_path / "trainData" /'NoFoul'/ output_file
+        output_path = project_path / "trainData" / 'NoFoul' / output_file
         self.valid_frames_value.append(len(data))
         np.savetxt(
             output_path,
             data,
-            delimiter=", ", 
+            delimiter=", ",
             fmt='% s'
         )
         print(f'Data saved to {output_file}')

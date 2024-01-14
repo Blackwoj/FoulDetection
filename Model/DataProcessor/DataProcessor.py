@@ -74,7 +74,6 @@ class DataProcessor:
                     act_row[0].append(p2_center[0][0])
                     act_row[0].append(p2_center[0][1])
                     data_to_train.append(act_row[0])
-        print(len(data_to_train))
         return data_to_train
 
     def prepare_data_to_train(self, data):
