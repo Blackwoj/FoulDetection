@@ -5,7 +5,7 @@ import logging
 import os
 from .subProcessing.PlayersMarking import MarkPlayer
 from .subProcessing.PoseDetection import PoseDetector
-from .Visualizer import Visualizer
+from typing import Any, List, Union
 
 
 class DataProcessor:
@@ -13,7 +13,6 @@ class DataProcessor:
     def __init__(self) -> None:
         self.mark_player = MarkPlayer()
         self.pose_detector = PoseDetector()
-        self.visualizer = Visualizer()
 
     def create_output_video(
         self,
@@ -54,7 +53,7 @@ class DataProcessor:
 
         video.release()
 
-    def process_frames(self, frames: list, filename, output_folder):
+    def process_frames(self, frames: list[Any]) -> Union[List[Any], None]:
         data_to_train = []
         new_video = 1
         for i, frame in enumerate(frames, start=1):
@@ -65,8 +64,8 @@ class DataProcessor:
 
             if result is not None and players_centers is not None:
                 pose_landmarks_list = self.pose_detector.detect_pose_landmarks(frame, box_of_interest, players_relative)
-                p1_center = self.normalize_players_centers(players_centers[0].tolist(), frame.size())
-                p2_center = self.normalize_players_centers(players_centers[1].tolist(), frame.size())
+                p1_center = self.normalize_players_centers(players_centers[0].tolist(), frame.shape)
+                p2_center = self.normalize_players_centers(players_centers[1].tolist(), frame.shape)
                 if len(pose_landmarks_list[0]) == 1 and len(pose_landmarks_list[1]) == 1:
                     act_row = self.prepare_data_to_train(pose_landmarks_list)
                     act_row[0].append(p1_center[0])
