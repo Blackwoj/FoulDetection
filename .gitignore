@@ -4,3 +4,4 @@ data/
 videos_to_cut/
 video_to_train/
 __pycache__/
+.vscode/
